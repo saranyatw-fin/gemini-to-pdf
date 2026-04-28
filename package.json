@@ -1,0 +1,11 @@
+{
+  "name": "gemini-to-pdf",
+  "version": "1.0.0",
+  "description": "Convert Gemini AI responses with equations to beautifully rendered PDFs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["gemini", "pdf", "mathjax", "markdown"],
+  "license": "MIT"
+}

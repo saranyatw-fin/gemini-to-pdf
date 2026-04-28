@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gemini Answer → PDF</title>
+
+<!-- MathJax for beautiful equation rendering -->
+<script>
+window.MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']],
+    processEscapes: true,
+    tags: 'ams'
+  },
+  options: { skipHtmlTags: ['script','noscript','style','textarea','pre'] },
+  startup: { ready() { MathJax.startup.defaultReady(); } }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" id="MathJax-script" async></script>
+
+<style>
+  /* ── Screen styles ── */
+  @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400&display=swap');
+
+  :root {
+    --bg: #faf9f6;
+    --surface: #ffffff;
+    --border: #e8e4de;
+    --text: #1a1917;
+    --muted: #6b6760;
+    --accent: #2a5f9e;
+    --accent-light: #e8f0fa;
+    --red: #c0392b;
+    --sans: 'DM Sans', sans-serif;
+    --serif: 'Lora', Georgia, serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── App shell ── */
+  .app {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    min-height: 100vh;
+  }
+
+  /* ── Left panel ── */
+  .panel {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 2rem 1.5rem;
+    gap: 1.25rem;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 0.5rem;
+  }
+
+  .logo-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .logo-text {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.2;
+  }
+
+  .logo-sub {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 300;
+  }
+
+  label.lbl {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  textarea {
+    width: 100%;
+    flex: 1;
+    min-height: 280px;
+    padding: 12px 14px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    resize: none;
+    outline: none;
+    line-height: 1.7;
+    transition: border-color 0.15s;
+  }
+
+  textarea:focus { border-color: #aaa; }
+  textarea::placeholder { color: #bbb; font-family: var(--sans); font-size: 13px; }
+
+  .btn {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    width: 100%;
+    transition: background 0.12s;
+    text-align: center;
+  }
+
+  .btn:hover { background: var(--bg); }
+  .btn:active { transform: scale(0.99); }
+
+  .btn.primary {
+    background: var(--accent);
+    color: white;
+    border-color: transparent;
+  }
+
+  .btn.primary:hover { background: #1e4f87; }
+
+  .btn.danger {
+    border-color: #fcc;
+    color: var(--red);
+  }
+
+  .btn.danger:hover { background: #fff5f5; }
+
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row .btn { flex: 1; }
+
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+    padding: 10px 12px;
+    background: var(--accent-light);
+    border-radius: 7px;
+    border-left: 3px solid var(--accent);
+  }
+
+  .hint strong { color: var(--accent); font-weight: 500; }
+
+  /* ── Right panel: rendered output ── */
+  .output-area {
+    padding: 3rem 4rem;
+    max-width: 860px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    text-align: center;
+    color: var(--muted);
+    gap: 1rem;
+  }
+
+  .placeholder-icon {
+    font-size: 48px;
+    opacity: 0.3;
+  }
+
+  .placeholder h2 {
+    font-size: 18px;
+    font-weight: 400;
+    color: #bbb;
+  }
+
+  .placeholder p {
+    font-size: 13px;
+    color: #ccc;
+    max-width: 300px;
+  }
+
+  /* ── Rendered document ── */
+  #rendered {
+    font-family: var(--serif);
+    font-size: 16px;
+    line-height: 1.9;
+    color: var(--text);
+  }
+
+  #rendered h1, #rendered h2, #rendered h3,
+  #rendered h4, #rendered h5, #rendered h6 {
+    font-family: var(--sans);
+    font-weight: 500;
+    color: var(--text);
+    margin: 1.8rem 0 0.6rem;
+    line-height: 1.3;
+  }
+
+  #rendered h1 { font-size: 26px; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 1rem; }
+  #rendered h2 { font-size: 21px; }
+  #rendered h3 { font-size: 17px; color: var(--accent); }
+
+  #rendered p { margin-bottom: 1rem; }
+
+  #rendered strong { font-weight: 500; }
+  #rendered em { font-style: italic; }
+
+  #rendered ul, #rendered ol {
+    margin: 0.75rem 0 1rem 1.5rem;
+  }
+
+  #rendered li { margin-bottom: 0.4rem; }
+
+  #rendered code {
+    font-family: var(--mono);
+    font-size: 13px;
+    background: #f0ede8;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #555;
+  }
+
+  #rendered pre {
+    background: #f4f1ec;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+  }
+
+  #rendered pre code {
+    background: none;
+    padding: 0;
+    font-size: 13px;
+    color: #333;
+  }
+
+  #rendered blockquote {
+    border-left: 3px solid var(--accent);
+    padding-left: 1rem;
+    color: var(--muted);
+    margin: 1rem 0;
+    font-style: italic;
+  }
+
+  #rendered table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.25rem 0;
+    font-family: var(--sans);
+    font-size: 14px;
+  }
+
+  #rendered th {
+    background: var(--bg);
+    font-weight: 500;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    text-align: left;
+  }
+
+  #rendered td {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+  }
+
+  #rendered tr:nth-child(even) td { background: #fafaf8; }
+
+  /* Display math centering */
+  #rendered .math-display {
+    display: block;
+    text-align: center;
+    margin: 1.5rem 0;
+    overflow-x: auto;
+  }
+
+  /* ── Print styles — what the PDF looks like ── */
+  @media print {
+    body { background: white; }
+
+    .panel { display: none !important; }
+
+    .app { display: block; }
+
+    .output-area {
+      padding: 1.5cm 2cm;
+      max-width: 100%;
+      margin: 0;
+    }
+
+    .placeholder { display: none; }
+
+    #rendered {
+      font-size: 11.5pt;
+      line-height: 1.75;
+    }
+
+    #rendered h1 { font-size: 20pt; }
+    #rendered h2 { font-size: 16pt; }
+    #rendered h3 { font-size: 13pt; }
+
+    #rendered pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    #rendered table { page-break-inside: avoid; }
+
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Left: Input panel -->
+  <aside class="panel">
+    <div class="logo">
+      <div class="logo-icon">∑</div>
+      <div>
+        <div class="logo-text">Gemini → PDF</div>
+        <div class="logo-sub">Equations rendered, ready to save</div>
+      </div>
+    </div>
+
+    <div>
+      <label class="lbl" for="input">Paste Gemini's answer here</label>
+      <textarea id="input" rows="18"
+        placeholder="Paste the full Gemini response here — text, markdown, and equations like $$E = mc^2$$ or \( \frac{a}{b} \) will all render correctly."></textarea>
+    </div>
+
+    <button class="btn primary" onclick="render()">Render →</button>
+
+    <div class="btn-row">
+      <button class="btn" onclick="loadExample()">Try example</button>
+      <button class="btn danger" onclick="clearAll()">Clear</button>
+    </div>
+
+    <button class="btn primary" onclick="savePDF()" style="background:#1a6640; margin-top:0;">⬇ Download as PDF</button>
+
+    <div class="hint">
+      <strong>How to save PDF:</strong> Click Download → browser opens Print dialog → set destination to <strong>"Save as PDF"</strong> → Save.<br><br>
+      Equations will be crisp vectors — not images.
+    </div>
+  </aside>
+
+  <!-- Right: Output area -->
+  <main class="output-area">
+    <div class="placeholder" id="placeholder">
+      <div class="placeholder-icon">∫</div>
+      <h2>Your rendered answer will appear here</h2>
+      <p>Paste a Gemini response on the left and click Render</p>
+    </div>
+    <div id="rendered"></div>
+  </main>
+
+</div>
+
+<script>
+// ── Simple Markdown + LaTeX parser ──
+
+const example = `# The Quadratic Formula
+
+Given the general quadratic equation:
+
+$$ax^2 + bx + c = 0$$
+
+where \\(a \\neq 0\\), the two solutions are given by the **quadratic formula**:
+
+$$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$
+
+## Understanding the Discriminant
+
+The expression under the square root, \\(\\Delta = b^2 - 4ac\\), is called the **discriminant** and tells us about the nature of the roots:
+
+- If \\(\\Delta > 0\\): two distinct real roots
+- If \\(\\Delta = 0\\): exactly one real root (a repeated root)
+- If \\(\\Delta < 0\\): two complex conjugate roots
+
+## Example
+
+Solve \\(2x^2 - 5x + 3 = 0\\).
+
+Here \\(a = 2\\), \\(b = -5\\), \\(c = 3\\).
+
+$$x = \\frac{5 \\pm \\sqrt{25 - 24}}{4} = \\frac{5 \\pm 1}{4}$$
+
+So the two roots are:
+
+$$x_1 = \\frac{6}{4} = \\frac{3}{2}, \\quad x_2 = \\frac{4}{4} = 1$$
+
+## Euler's Identity
+
+One of the most beautiful equations in mathematics:
+
+$$e^{i\\pi} + 1 = 0$$
+
+This connects five fundamental constants: \\(e\\), \\(i\\), \\(\\pi\\), \\(1\\), and \\(0\\).`;
+
+function loadExample() {
+  document.getElementById('input').value = example;
+  render();
+}
+
+function clearAll() {
+  document.getElementById('input').value = '';
+  document.getElementById('rendered').innerHTML = '';
+  document.getElementById('placeholder').style.display = 'flex';
+}
+
+function escapeHTML(s) {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function parseMarkdown(text) {
+  // 1. Protect display math blocks $$...$$ and \[...\]
+  const mathBlocks = [];
+  text = text.replace(/\$\$([\s\S]+?)\$\$/g, (_, m) => {
+    mathBlocks.push(`<div class="math-display">\\[${m}\\]</div>`);
+    return `%%MATHBLOCK${mathBlocks.length - 1}%%`;
+  });
+  text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, m) => {
+    mathBlocks.push(`<div class="math-display">\\[${m}\\]</div>`);
+    return `%%MATHBLOCK${mathBlocks.length - 1}%%`;
+  });
+
+  // 2. Protect code blocks
+  const codeBlocks = [];
+  text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    codeBlocks.push(`<pre><code>${escapeHTML(code.trim())}</code></pre>`);
+    return `%%CODEBLOCK${codeBlocks.length - 1}%%`;
+  });
+
+  // 3. Protect inline code
+  const inlineCodes = [];
+  text = text.replace(/`([^`]+)`/g, (_, code) => {
+    inlineCodes.push(`<code>${escapeHTML(code)}</code>`);
+    return `%%INLINECODE${inlineCodes.length - 1}%%`;
+  });
+
+  // 4. Protect inline math $...$ and \(...\)
+  const inlineMath = [];
+  text = text.replace(/\\\((.+?)\\\)/g, (_, m) => {
+    inlineMath.push(`\\(${m}\\)`);
+    return `%%INLINEMATH${inlineMath.length - 1}%%`;
+  });
+  text = text.replace(/(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)/g, (_, m) => {
+    inlineMath.push(`\\(${m}\\)`);
+    return `%%INLINEMATH${inlineMath.length - 1}%%`;
+  });
+
+  // 5. Split into lines and process
+  const lines = text.split('\n');
+  const output = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Headings
+    const hMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (hMatch) {
+      const level = hMatch[1].length;
+      output.push(`<h${level}>${processInline(hMatch[2])}</h${level}>`);
+      i++; continue;
+    }
+
+    // Horizontal rule
+    if (/^---+$/.test(line.trim()) || /^\*\*\*+$/.test(line.trim())) {
+      output.push('<hr style="border:none;border-top:1px solid #e8e4de;margin:1.5rem 0;">');
+      i++; continue;
+    }
+
+    // Blockquote
+    if (line.startsWith('> ')) {
+      output.push(`<blockquote>${processInline(line.slice(2))}</blockquote>`);
+      i++; continue;
+    }
+
+    // Math block placeholder
+    if (/^%%MATHBLOCK\d+%%$/.test(line.trim())) {
+      const idx = parseInt(line.match(/%%MATHBLOCK(\d+)%%/)[1]);
+      output.push(mathBlocks[idx]);
+      i++; continue;
+    }
+
+    // Code block placeholder
+    if (/^%%CODEBLOCK\d+%%$/.test(line.trim())) {
+      const idx = parseInt(line.match(/%%CODEBLOCK(\d+)%%/)[1]);
+      output.push(codeBlocks[idx]);
+      i++; continue;
+    }
+
+    // Unordered list
+    if (/^[\*\-\+]\s/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^[\*\-\+]\s/.test(lines[i])) {
+        items.push(`<li>${processInline(lines[i].replace(/^[\*\-\+]\s/, ''))}</li>`);
+        i++;
+      }
+      output.push(`<ul>${items.join('')}</ul>`);
+      continue;
+    }
+
+    // Ordered list
+    if (/^\d+\.\s/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\d+\.\s/.test(lines[i])) {
+        items.push(`<li>${processInline(lines[i].replace(/^\d+\.\s/, ''))}</li>`);
+        i++;
+      }
+      output.push(`<ol>${items.join('')}</ol>`);
+      continue;
+    }
+
+    // Table
+    if (line.includes('|') && lines[i+1] && /^\|?[\s\-:|]+\|/.test(lines[i+1])) {
+      const tableLines = [];
+      while (i < lines.length && lines[i].includes('|')) {
+        tableLines.push(lines[i]);
+        i++;
+      }
+      output.push(parseTable(tableLines));
+      continue;
+    }
+
+    // Empty line
+    if (!line.trim()) {
+      i++; continue;
+    }
+
+    // Paragraph
+    const paraLines = [];
+    while (i < lines.length && lines[i].trim() && !lines[i].match(/^#{1,6}\s/) && !lines[i].startsWith('> ') && !/^[\*\-\+]\s/.test(lines[i]) && !/^\d+\.\s/.test(lines[i]) && !lines[i].includes('|') && !/^%%MATHBLOCK/.test(lines[i].trim()) && !/^%%CODEBLOCK/.test(lines[i].trim()) && !/^---+$/.test(lines[i].trim())) {
+      paraLines.push(lines[i]);
+      i++;
+    }
+    if (paraLines.length) output.push(`<p>${processInline(paraLines.join(' '))}</p>`);
+  }
+
+  let html = output.join('\n');
+
+  // Restore placeholders
+  html = html.replace(/%%INLINEMATH(\d+)%%/g, (_, idx) => inlineMath[parseInt(idx)]);
+  html = html.replace(/%%INLINECODE(\d+)%%/g, (_, idx) => inlineCodes[parseInt(idx)]);
+
+  return html;
+}
+
+function processInline(text) {
+  // Bold **text** or __text__
+  text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/__(.+?)__/g, '<strong>$1</strong>');
+  // Italic *text* or _text_
+  text = text.replace(/\*([^*]+?)\*/g, '<em>$1</em>');
+  text = text.replace(/_([^_]+?)_/g, '<em>$1</em>');
+  // Links
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  return text;
+}
+
+function parseTable(lines) {
+  const rows = lines.map(l => l.split('|').map(c => c.trim()).filter((c, i, a) => !(i === 0 && !c) && !(i === a.length-1 && !c)));
+  const header = rows[0];
+  const body = rows.slice(2); // skip separator
+  let html = '<table><thead><tr>';
+  header.forEach(h => html += `<th>${processInline(h)}</th>`);
+  html += '</tr></thead><tbody>';
+  body.forEach(row => {
+    html += '<tr>';
+    row.forEach(cell => html += `<td>${processInline(cell)}</td>`);
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+function render() {
+  const raw = document.getElementById('input').value.trim();
+  if (!raw) return;
+
+  const html = parseMarkdown(raw);
+  const rendered = document.getElementById('rendered');
+  rendered.innerHTML = html;
+  document.getElementById('placeholder').style.display = 'none';
+
+  // Re-render MathJax
+  if (window.MathJax && MathJax.typesetPromise) {
+    MathJax.typesetPromise([rendered]).catch(err => console.warn('MathJax error:', err));
+  }
+}
+
+function savePDF() {
+  // Make sure content is rendered first
+  const raw = document.getElementById('input').value.trim();
+  if (raw && !document.getElementById('rendered').innerHTML) render();
+
+  // MathJax needs a moment to finish typesetting before print
+  if (window.MathJax && MathJax.typesetPromise) {
+    MathJax.typesetPromise().then(() => window.print());
+  } else {
+    window.print();
+  }
+}
+
+// Auto-render on Ctrl+Enter
+document.getElementById('input').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') render();
+});
+</script>
+</body>
+</html>
