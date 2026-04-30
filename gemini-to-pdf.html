@@ -485,7 +485,7 @@ function parseMarkdown(text) {
     inlineMath.push(`\\(${m}\\)`);
     return `%%INLINEMATH${inlineMath.length - 1}%%`;
   });
-  text = text.replace(/(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)/g, (_, m) => {
+  text = text.replace(/(?<!\$)\$(?!\$)(?!\d)(.+?)(?<!\$)\$(?!\$)/g, (_, m) => {
     inlineMath.push(`\\(${m}\\)`);
     return `%%INLINEMATH${inlineMath.length - 1}%%`;
   });
